@@ -1,0 +1,19 @@
+# Secrets — never commit your real API key
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Local cache of downloaded price data
+.cache/
+*.local.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
