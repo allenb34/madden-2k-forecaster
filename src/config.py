@@ -17,9 +17,10 @@ from datetime import date
 @dataclass(frozen=True)
 class Edition:
     title: str            # Display name, e.g. "Madden NFL 24"
-    release_date: date    # US retail launch
+    release_date: date    # US retail launch (estimated, if is_projected)
     search_term: str      # What we send to the price APIs
     is_current: bool = False
+    is_projected: bool = False  # Upcoming, unreleased edition (forecast only)
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,13 @@ class Franchise:
 
     @property
     def past_editions(self) -> list[Edition]:
-        return [e for e in self.editions if not e.is_current]
+        """Released, non-current editions — the data the model is fit on."""
+        return [e for e in self.editions if not e.is_current and not e.is_projected]
+
+    @property
+    def next_edition(self) -> Edition | None:
+        """The upcoming, unreleased edition (forecast only), if defined."""
+        return next((e for e in self.editions if e.is_projected), None)
 
 
 # Key price thresholds the forecast table reports dates for.
@@ -53,6 +60,8 @@ FRANCHISES: dict[str, Franchise] = {
             Edition("Madden NFL 24", date(2023, 8, 18), "Madden NFL 24"),
             Edition("Madden NFL 25", date(2024, 8, 16), "Madden NFL 25"),
             Edition("Madden NFL 26", date(2025, 8, 14), "Madden NFL 26", is_current=True),
+            # Estimated launch (Madden typically launches mid-August).
+            Edition("Madden NFL 27", date(2026, 8, 14), "Madden NFL 27", is_projected=True),
         ],
     ),
     "nba2k": Franchise(
@@ -65,6 +74,8 @@ FRANCHISES: dict[str, Franchise] = {
             Edition("NBA 2K24", date(2023, 9, 8), "NBA 2K24"),
             Edition("NBA 2K25", date(2024, 9, 6), "NBA 2K25"),
             Edition("NBA 2K26", date(2025, 9, 5), "NBA 2K26", is_current=True),
+            # Estimated launch (NBA 2K typically launches early September).
+            Edition("NBA 2K27", date(2026, 9, 4), "NBA 2K27", is_projected=True),
         ],
     ),
 }

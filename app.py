@@ -89,6 +89,8 @@ with st.spinner("Fetching price history…"):
     histories: dict[str, list] = {}
     missing: list[str] = []
     for ed in franchise.editions:
+        if ed.is_projected:
+            continue  # unreleased — forecast only, no data to fetch
         pts = load_history(ed.search_term, ed.release_date.isoformat(), api_key)
         if pts:
             histories[ed.title] = pts
@@ -210,6 +212,11 @@ st.plotly_chart(fig2, use_container_width=True)
 # --------------------------------------------------------------------------- #
 
 st.header("3 · Forecast: when does it hit each price?")
+st.caption(
+    f"For the live edition ({current.title}). Once an edition is fully "
+    "depreciated these are all *actual* dates — see **Section 4** for the "
+    "forward-looking projection of the upcoming edition."
+)
 
 rows = []
 for thr in PRICE_THRESHOLDS:
@@ -239,6 +246,66 @@ for thr in PRICE_THRESHOLDS:
     })
 
 st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+
+# --------------------------------------------------------------------------- #
+# Section 4 — Next edition projection (keeps the tool forward-looking)
+# --------------------------------------------------------------------------- #
+
+nxt = franchise.next_edition
+if nxt is not None:
+    st.header(f"4 · Projection for {nxt.title} — upcoming, not yet released")
+    st.warning(
+        f"🔮 **Model projection only.** Anchored on an **estimated** release of "
+        f"**{nxt.release_date.strftime('%B %d, %Y')}**. {nxt.title} hasn't "
+        "launched, so there is no actual price data yet — every value below is "
+        f"the fitted {franchise.name} depreciation curve applied to that date."
+    )
+
+    proj_rows = []
+    for thr in PRICE_THRESHOLDS:
+        model_day = params.days_to_price(thr)
+        if model_day is None:
+            proj_rows.append({
+                "Price target": f"${thr:.2f}",
+                "Projected date": "—",
+                "Days after release": "—",
+                "Basis": "🔮 Projection (below modeled floor)",
+            })
+        else:
+            d = int(round(model_day))
+            when = nxt.release_date + timedelta(days=d)
+            proj_rows.append({
+                "Price target": f"${thr:.2f}",
+                "Projected date": when.strftime("%b %d, %Y"),
+                "Days after release": str(d),
+                "Basis": "🔮 Projection",
+            })
+    st.dataframe(pd.DataFrame(proj_rows), hide_index=True, use_container_width=True)
+
+    # Projected price trajectory on a calendar axis.
+    target_day_n = params.days_to_price(min(PRICE_THRESHOLDS))
+    span = max(int(target_day_n or 0) + 60, 365)
+    xs = list(range(0, span + 1, 5))
+    proj_dates = [nxt.release_date + timedelta(days=d) for d in xs]
+    proj_prices = [round(params.price_at(d), 2) for d in xs]
+
+    fig4 = go.Figure()
+    fig4.add_trace(go.Scatter(
+        x=proj_dates, y=proj_prices, mode="lines", name="Projected price",
+        line=dict(color="#9467bd", width=3, dash="dash"),
+    ))
+    for thr in PRICE_THRESHOLDS:
+        fig4.add_hline(y=thr, line=dict(color="gray", width=1, dash="dot"),
+                       annotation_text=f"${thr}", annotation_position="right")
+    fig4.update_layout(
+        xaxis_title="Projected calendar date",
+        yaxis_title="Projected price (USD)",
+        height=440,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+    )
+    st.plotly_chart(fig4, use_container_width=True)
+
 
 with st.expander("How the model works"):
     st.markdown(
